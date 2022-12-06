@@ -1,0 +1,46 @@
+#!/bin/bash -e
+#
+# S2I assemble script for the 'gradle-spring-boot' image.
+# The 'assemble' script builds your application source so that it is ready to run.
+#
+# For more information refer to the documentation:
+#	https://github.com/openshift/source-to-image/blob/master/docs/builder_image.md
+#
+
+# If the 'gradle-spring-boot' assemble script is executed with the '-h' flag, print the usage.
+if [[ "$1" == "-h" ]]; then
+	exec /usr/libexec/s2i/usage
+fi
+
+# Restore artifacts from the previous build (if they exist).
+echo "---> Restoring build artifacts..."
+if [ "$(ls -A /tmp/artifacts/ 2>/dev/null)" ]; then
+  echo "---> Restoring found build artifacts..."
+  cp -Rf /tmp/artifacts/. ./
+fi
+
+echo "---> Installing application source..."
+cp -Rf /tmp/src/. ./
+
+echo "---> Building application from source..."
+GRADLE_ARGS=${GRADLE_ARGS:-"build"}
+echo "---> # GRADLE_ARGS = $GRADLE_ARGS"
+echo "---> # GRADLE_OPTS = $GRADLE_OPTS"
+
+if [ -f "gradlew" ]; then
+  echo "---> Building application with gradle wrapper..."
+  ./gradlew ${GRADLE_ARGS}
+else
+  echo "---> Gradle wrapper could not be found!  Aborting..."
+  exit 1
+fi
+
+ARTIFACT_DIR=${ARTIFACT_DIR:-build/libs}
+echo "---> # ARTIFACT_DIR = $ARTIFACT_DIR"
+result_file=$(find $ARTIFACT_DIR -name *.jar)
+echo "---> Rename artifact ${result_file}"
+if [ -z "$result_file" ]; then
+  echo "---> Application .jar file could not be found!  Aborting..."
+  exit 1
+fi
+mv $result_file app.jar
